@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Application xmlns:fx="http://ns.adobe.com/mxml/2009" 
+			   xmlns:s="library://ns.adobe.com/flex/spark" 
+			   xmlns:mx="library://ns.adobe.com/flex/mx" initialize="init()" minWidth="955" minHeight="600">
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	<fx:Script>
+		<![CDATA[
+			
+			import flash.errors.*;
+			import flash.events.*;
+			import flash.net.Socket;
+			private var socket:Socket;
+			private var socketEncoder:SocketServerEncoder;
+			private function init()
+			{
+				socket=new Socket();
+				configureListeners(); 
+				socket.connect("127.0.0.1",9001);
+				socketEncoder=new SocketServerEncoder();
+				//socketEncoder.setRoom(myXML.child('room').text());
+			}
+			 
+			private function configureListeners():void 
+			{
+				socket.addEventListener(Event.CLOSE, closeHandler);
+				socket.addEventListener(Event.CONNECT, connectHandler);
+				socket.addEventListener(IOErrorEvent.IO_ERROR, ioErrorHandler);
+				socket.addEventListener(SecurityErrorEvent.SECURITY_ERROR, securityErrorHandler);
+				socket.addEventListener(ProgressEvent.SOCKET_DATA, socketDataHandler);
+			}
+					 
+			private function sendRequest():void 
+			{
+				var message = new Array(); 
+				socketEncoder.setRoomEvent("main","message",sendComponent.text)
+ 				socket.writeUTFBytes(socketEncoder.encodedMessage());
+				sendComponent.text="";
+				socket.flush();
+			}
+					
+			public function readResponse():void
+			{
+				var str:String = socket.readUTFBytes(socket.bytesAvailable);
+				var myXML = new XML(str);
+				socketEncoder.setSession(myXML.child('private_session').text());
+			 
+				textComponent.text+=str;
+			}
+					
+			private function closeHandler(event:Event):void 
+			{
+				trace("closeHandler: " + event) 
+			}
+					
+			private function connectHandler(event:Event):void 
+			{
+				trace("connectHandler: " + event);
+			}
+					
+			private function ioErrorHandler(event:IOErrorEvent):void 
+			{
+				trace("ioErrorHandler: " + event);
+			}
+					
+			private function securityErrorHandler(event:SecurityErrorEvent):void 
+			{
+				trace("securityErrorHandler: " + event);
+			}
+					
+			private function socketDataHandler(event:ProgressEvent):void 
+			{ 
+				readResponse();
+			}
+				 
+		]]>
+	</fx:Script>
+	<s:VGroup> 
+		<mx:TextArea   id="textComponent" height="500"  width="500"  /> 
+		<s:HGroup> 
+			<s:Button click="sendRequest()" label="Pošalji" />
+			<mx:TextArea  id="sendComponent"  /> 
+		</s:HGroup>
+	</s:VGroup>
+</s:Application>
