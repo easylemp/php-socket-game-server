@@ -1,85 +1,98 @@
 <?php
-
+/**
+ * @author Goran Sambolić <gsambolic@gmail.com>
+ * @version 0.1
+ * @package  Server
+ * @license BSD 
+ * Server Class
+ */
 class Server_Server
 {
-	
+	/**
+	 * running new server
+	 * */
 	public function run()
 	{ 
-		
+		//creating new socket server
 		$socket = new Socket_Server(AF_INET, SOCK_STREAM, 0);  
 		$socket->bind("127.0.0.1", 9001); 
-		//$socket->bind("173.203.113.55", 9000);
 		$socket->listen(); 
-		$socket->setToNonBlock(); 
+		//setting to block or nonblock, depends on your testing
+		//$socket->setToNonBlock(); 
 		$this->startApplication($socket);
-		
 	}
-
+	/**
+	 * staring application
+	 * creating rooms and handling socket connections
+	 * @param $socket Socket_Server
+	 * */
 	public function startApplication(Socket_Server $socket) 
 	{
-		
 		$userManager=new Manager_User();
 		$clientManager=new Manager_Client();
 		$roomManager=new Manager_Room();
-		
 		$roomManager->add("main",new RoomItems_DefaultRoom()); 
 	    $clientManager->setMaxCount(10);
 		$sock=$socket->getSocketInstance(); 
-	 	
+	 	//this is loop that runs server
 		while (true) 
 		{ 
 		    // Setup clients listen socket for reading
 			$read=array();
+			//adding server at first place in read array
 			array_push($read, $sock);
-			 
+			//looping throught all socket connections
 		    foreach ($clientManager as $c)
 		    {
 		       array_push( $read, $c->getSocketInstance()) ; 
 		  	}
 	
 		    $value=null;
-		    // Set up a blocking call to socket_select()
+			//wraper for socket_select
 		    $ready = $socket->select($read,$value,$value,100); 
 	 
+		    //if new socket is added
 		    if (in_array($sock, $read)) 
 		    {
+		    	//create Socket_Client instance
 		   		$clientObject=new Socket_Client();
-		        $clientObject->setSocketInstance($socket->accept()); 
+		   		//set socket resource to Socket_Client
+		        $clientObject->setSocketInstance($socket->accept());
+		        //adding Socket_Client to clientManager 
 				$clientManager->add($clientObject); 
+				//creating new user with Default_User object
 				$userSession=$userManager->add(new UserItems_DefaultUser(), $clientObject);  
-			 	$roomManager->addUserToRoom($userManager->getUserBySession($userSession),"main"); 
+			 	//adding new user to main room 
+				$roomManager->addUserToRoom($userManager->getUserBySession($userSession),"main"); 
 			 	$key = array_search($sock, $read);
-            	unset($read[$key]);
+            	//unset this key from read
+			 	unset($read[$key]);
 		    }  
 
 		    // loop through all the clients that have data to read from
-        foreach ($read as $readSock) 
-        {
-            // read until newline or 1024 bytes
-            // socket_read while show errors when the client is disconnected, so silence the error messages
-            //---$data = @socket_read($readSock, 1024, PHP_NORMAL_READ);
-            $client=$clientManager->getItemByResource($readSock);
-            $data=$client->read(1024);
-            // check if the client is disconnected
-            if ($data === false) 
-            { 
-                unset($c); 
-                continue;
-            }
+	        foreach ($read as $readSock) 
+	        {
+	            //read sockets
+	            $client=$clientManager->getItemByResource($readSock);
+	            //read message
+	            $data=$client->read(1024);
+	            // check if the client is disconnected
+	            if ($data === false) 
+	            { 
+	                unset($c); 
+	                continue;
+	            }
            
-            // trim off the trailing/beginning white spaces
-            $data = trim($data);
-            
-           
-            // check if there is any data after trimming off the spaces
-            if (!empty($data)) 
-            {
-                $recive=new Communication_Recive($data); 
-	            $roomEvents=$recive->getParsedRoomsEvents();
-	            $roomManager->dispatchRoomEvents($roomEvents);
-            }  
-        } // end of reading foreach 
-		
+	            // trim off the trailing/beginning white spaces
+	            $data = trim($data);  
+	            //parse data and dispatch events to rooms
+	            if (!empty($data)) 
+	            {
+	                $recive=new Communication_Recive($data); 
+		            $roomEvents=$recive->getParsedRoomsEvents();
+		            $roomManager->dispatchRoomEvents($roomEvents);
+	            }  
+        	}  
 		} 
 	} 
 }
